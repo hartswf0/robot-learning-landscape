@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Robot's Learning Landscape!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* --- Sizes & Layout --- */
+      --cell-size: clamp(60px, 18vmin, 95px);
+      --grid-gap: 1.0;
+      --agent-size: 30px;
+      
+      /* --- Colors --- */
+      --agent-color: #f3a683;
+      --goal-color: #00ff00;   /* Reward cell forced green */
+      --trap-color: #ff0000;   /* Trap cell forced red */
+      --mud-color: #8B4513;    /* Mud cell forced brown */
+      --wall-color: #636e72;
+      --empty-color: #ecf0f1;
+      --start-color: #74b9ff;
+      --text-dark: #2f3542;
+      --grid-border: #576574;
+      --policy-arrow-color: #1dd1a1; /* Bright Teal Arrow */
+      --pillar-neutral: #ced6e0;
+      --pillar-good: #2ecc71;
+      --pillar-bad: #e74c3c;
+      --pillar-flash-color: #ffffff;
+      --highlight-color: #fffa65;
+      --info-bg: #ffffff;
+      --controls-bg: #dfe4ea;
+      --button-shadow: #576574;
+      --stripe-color: #f8f9fa;
+      
+      /* --- Fonts --- */
+      --font-pixel: 'Press Start 2P', cursive;
+    }
+    body {
+      font-family: var(--font-pixel);
+      margin: 0;
+      padding: 0;
+      background-color: #ecf0f1;
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: none;
+      overflow: hidden;
+    }
+    #main-container {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+    }
+    #canvas-container {
+      position: relative;
+      flex-grow: 1;
+      height: 100%;
+      border: 3px solid var(--grid-border);
+      box-shadow: 4px 4px 0px var(--button-shadow);
+      background-color: #a2d1e3;
+      min-width: 300px;
+    }
+    #info-panel {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--info-bg);
+      padding: 15px;
+      border: 3px solid var(--grid-border);
+      box-shadow: 4px 4px 0px var(--button-shadow);
+      width: 400px;
+      min-width: 320px;
+      height: 100%;
+      overflow-y: auto;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2980b9;
+      margin-bottom: 15px;
+      margin-top: 0;
+      font-size: 1.0em;
+      line-height: 1.3;
+    }
+    h1 { font-size: 1.2em; }
+    h2 { font-size: 0.9em; margin-top: 15px; border-top: 2px solid var(--grid-border); padding-top: 10px; color: var(--text-dark); }
+    #status-display {
+      text-align: left;
+      margin-bottom: 10px;
+      padding: 8px;
+      background-color: var(--controls-bg);
+      border: 1px solid var(--grid-border);
+      font-size: 0.7em;
+      line-height: 1.5;
+    }
+    #status-display span { font-weight: normal; color: #c0392b; }
+    #status-display #mode { color: #2980b9; font-weight: bold; }
+    #controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    .control-button {
+      padding: 6px 8px;
+      font-size: 0.7em;
+      font-family: var(--font-pixel);
+      cursor: pointer;
+      border: 2px solid var(--grid-border);
+      background-color: var(--controls-bg);
+      color: var(--text-dark);
+      box-shadow: 2px 2px 0px var(--button-shadow);
+      transition: background-color 0.1s, box-shadow 0.1s, transform 0.1s;
+      text-align: center;
+    }
+    .control-button:active {
+      background-color: #bdc3c7;
+      box-shadow: 1px 1px 0px var(--button-shadow);
+      transform: translate(1px, 1px);
+    }
+    .control-button:disabled {
+      background-color: #d2dae2;
+      color: #8395a7;
+      cursor: not-allowed;
+      box-shadow: 1px 1px 0px var(--button-shadow);
+      transform: translate(1px, 1px);
+    }
+    .control-button.toggle.active {
+      background-color: #bdc3c7;
+    }
+    #randomize-world-button {
+      grid-column: 1 / -1;
+      background-color: #fab1a0;
+    }
+    #randomize-world-button:active {
+      background-color: #e17055;
+    }
+    #speed-control {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.7em;
+      margin-top: 10px;
+      width: 100%;
+      justify-content: center;
+    }
+    #speed-slider { width: 80px; }
+    #episode-run-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid var(--grid-border);
+      background-color: var(--controls-bg);
+      font-size: 0.7em;
+    }
+    #episode-run-controls label { white-space: nowrap; }
+    #explore-episodes-input {
+      width: 50px;
+      font-family: var(--font-pixel);
+      font-size: 0.9em;
+      padding: 2px 4px;
+      border: 1px solid var(--grid-border);
+      text-align: center;
+    }
+    #run-episodes-button {
+      font-size: 0.9em;
+      padding: 4px 6px;
+      flex-grow: 1;
+    }
+    #narrative-log-container {
+      margin-top: 15px;
+      width: 100%;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    #narrative-log {
+      flex-grow: 1;
+      min-height: 100px;
+      overflow-y: auto;
+      border: 2px solid var(--grid-border);
+      padding: 8px;
+      background-color: #f8f9fa;
+      font-size: 0.7em;
+      line-height: 1.4;
+      scroll-behavior: smooth;
+      margin-top: 5px;
+    }
+    .log-entry {
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed #bdc3c7;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry.good { color: #27ae60; }
+    .log-entry.bad { color: #e74c3c; }
+    .log-entry.info { color: #3498db; }
+    .log-entry.special { color: #8e44ad; font-weight: bold; }
+    #q-worksheet-container {
+      margin-top: 15px;
+      width: 100%;
+      font-size: 0.7em;
+      overflow-x: auto;
+    }
+    #q-worksheet {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: var(--info-bg);
+      border: 2px solid var(--grid-border);
+    }
+    #q-worksheet th,
+    #q-worksheet td {
+      border: 1px solid var(--grid-border);
+      padding: 4px 6px;
+      text-align: center;
+      min-width: 45px;
+    }
+    #q-worksheet th {
+      background-color: #ecf0f1;
+      font-size: 0.9em;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    #q-worksheet td { height: 25px; position: relative; }
+    #q-worksheet .state-col {
+      font-weight: bold;
+      background-color: #ecf0f1;
+      min-width: 55px;
+    }
+    #q-worksheet .best-guess-col {
+      font-size: 1.4em;
+      background-color: #ecf0f1;
+      min-width: 30px;
+    }
+    #q-worksheet tbody tr:nth-child(4n-1),
+    #q-worksheet tbody tr:nth-child(4n) {
+      background-color: var(--stripe-color);
+    }
+    @keyframes flash-cell-update {
+      from { background-color: var(--highlight-color); }
+      to { }
+    }
+    .flash-update { animation: flash-cell-update 0.7s ease-out; }
+    .explanation {
+      font-size: 0.75em;
+      line-height: 1.6;
+      margin-top: 15px;
+    }
+    .explanation h3 { font-size: 1em; }
+    .explanation p,
+    .explanation li { margin-bottom: 8px; }
+    .explanation strong { color: #e67e22; }
+    .explanation code {
+      background-color: #dfe4ea;
+      padding: 1px 3px;
+      border: 1px solid var(--grid-border);
+      font-size: 0.9em;
+    }
+    .explanation ul {
+      list-style: square;
+      padding-left: 15px;
+    }
+    .explanation .emoji { font-size: 1.1em; vertical-align: middle; }
+    .bellman-box {
+      background-color: #fff9e0;
+      border: 1px dashed #f39c12;
+      padding: 8px;
+      margin-top: 10px;
+      font-size: 0.9em;
+      line-height: 1.5;
+    }
+    .bellman-box code { font-size: 0.9em; }
+    canvas {
+      display: block;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+    }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.2em;
+      color: #fff;
+      background: rgba(0,0,0,0.7);
+      padding: 15px;
+      border-radius: 5px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body class="q-viz-on">
+  <div id="main-container">
+    <div id="canvas-container">
+      <div id="loading">Loading 3D World...</div>
+    </div>
+    <div id="info-panel">
+      <h1>Robot's Learning Landscape!</h1>
+      <div id="status-display">
+        <div>Episode: <span id="episode">1</span> Step: <span id="steps">0</span> Mode: <span id="mode">Explore</span></div>
+        <div>Robot Spot: <span id="state">N/A</span> Last Move: <span id="action">N/A</span> Points: <span id="reward">N/A</span></div>
+        <div id="test-info" style="font-size: 0.9em; margin-top: 5px; color: #e84393;"></div>
+      </div>
+      <div id="controls">
+        <button id="step-button" class="control-button">Step (Explore)</button>
+        <button id="auto-start-button" class="control-button">Start Auto (Explore)</button>
+        <button id="auto-stop-button" class="control-button" disabled>Stop Auto</button>
+        <button id="test-policy-button" class="control-button">Test Best Plan</button>
+        <button id="reset-button" class="control-button">Next Episode</button>
+        <button id="q-toggle-button" class="control-button toggle active">Show/Hide Learn</button>
+        <button id="full-reset-button" class="control-button">Reset All</button>
+        <button id="randomize-world-button" class="control-button">Randomize World</button>
+      </div>
+      <div id="episode-run-controls">
+        <label for="explore-episodes-input">Run:</label>
+        <input type="number" id="explore-episodes-input" value="20" min="1" max="1000">
+        <label for="explore-episodes-input">Episodes</label>
+        <button id="run-episodes-button" class="control-button">Run Explore</button>
+      </div>
+      <div id="speed-control">
+        <span>Speed:</span>
+        <input type="range" id="speed-slider" min="50" max="1000" value="200" step="25">
+        <span id="speed-value">200ms</span>
+      </div>
+      <div id="q-worksheet-container">
+        <h2>Learning Worksheet</h2>
+        <table id="q-worksheet">
+          <thead>
+            <tr>
+              <th>Spot</th>
+              <th>⬆️</th>
+              <th>⬇️</th>
+              <th>⬅️</th>
+              <th>➡️</th>
+              <th><span class="emoji">🗺️</span></th>
+            </tr>
+          </thead>
+          <tbody id="q-worksheet-body"></tbody>
+        </table>
+      </div>
+      <div id="narrative-log-container">
+        <h2>Log Book</h2>
+        <div id="narrative-log"></div>
+      </div>
+      <div class="explanation">
+        <h3>How Does it Learn?</h3>
+        <p>Robot 🤖 explores the <strong>Growing Landscape</strong>!</p>
+        <ul>
+          <li><strong>Pillar Height &amp; Color <span class="emoji">⛰️</span>:</strong> For regular cells, the color reflects its learned value (taller/greener = better, shorter/redder = worse). Special cells (traps, mud, reward) have fixed colors.</li>
+          <li><strong>Policy Arrow <span class="emoji">🧭</span>:</strong> Points the best action learned (not shown for traps, mud, or reward).</li>
+          <li><strong>Pillar Flash <span class="emoji">✨</span>:</strong> When a cell’s Q‑value updates, its pillar flashes color‐coded based on the update (green for positive, red for negative, yellow near zero).</li>
+          <li><strong>Worksheet <span class="emoji">📝</span>:</strong> Displays Q‑values numerically and flashes when updated.</li>
+        </ul>
+        <p>Use "Run Explore", then "Test Best Plan"!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Libraries -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "canvas-confetti": "https://cdn.skypack.dev/canvas-confetti"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+    import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+    import confetti from 'canvas-confetti';
+
+    // --- Constants & Setup ---
+    const GRID_SIZE = 4;
+    const LEARNING_RATE = 0.1;
+    const DISCOUNT_FACTOR = 0.9;
+    let STEP_INTERVAL_MS = 200;
+    const TEST_MAX_STEPS = 25;
+    const CELL_SIZE = 6;
+    const BASE_Y_POS = 0;
+    const CELL_GAP = 1.5;
+    const PILLAR_RADIUS = CELL_SIZE * 0.4;
+    const PILLAR_MIN_HEIGHT = 0.2;
+    const PILLAR_MAX_HEIGHT = 3.0;  // More subtle range
+    const HEIGHT_LERP_FACTOR = 0.07;
+    const POLICY_ARROW_LENGTH = PILLAR_RADIUS * 1.8;
+    const POLICY_ARROW_HEAD_LENGTH = POLICY_ARROW_LENGTH * 0.5;
+    const POLICY_ARROW_HEAD_WIDTH = POLICY_ARROW_HEAD_LENGTH * 0.7;
+    const AGENT_SIZE = PILLAR_RADIUS * 0.7;
+    const AGENT_HEIGHT_OFFSET = 0.5;
+    const AGENT_LERP_FACTOR = 0.5;
+    const Q_VALUE_MIN_EXPECTED = -8;
+    const Q_VALUE_MAX_EXPECTED = 12;
+    const JIGGLE_AMOUNT = 0.07;
+    const TEXT_SIZE = 0.6;
+    const TEXT_HEIGHT = 0.1;
+    const TEXT_OFFSET = 0.5;
+
+    // --- DOM Elements ---
+    let canvasContainer, narrativeLog, stateDisplay, actionDisplay,
+        rewardDisplay, episodeDisplay, stepsDisplay, modeDisplay, stepButton, autoStartButton,
+        autoStopButton, resetButton, qToggleButton, fullResetButton, speedSlider, speedValueDisplay,
+        testPolicyButton, testInfoDisplay, loadingIndicator, exploreEpisodesInput, runEpisodesButton, qWorksheetBody,
+        randomizeWorldButton;
+
+    // --- Grid / RL Setup ---
+    let gridLayout = [
+      ['S', '.', '.', '.'],
+      ['.', '#', '*', 'T'],
+      ['.', '.', '.', '.'],
+      ['*', 'G', '.', '.']
+    ];
+    const REWARDS = { 'G': 10, 'T': -10, '*': -1, '.': 0, 'S': 0, '#': 0, 'HIT_WALL': -1 };
+    const ACTIONS = {
+      'UP': { dr: -1, dc: 0 },
+      'DOWN': { dr: 1, dc: 0 },
+      'LEFT': { dr: 0, dc: -1 },
+      'RIGHT': { dr: 0, dc: 1 }
+    };
+    const ACTION_NAMES = Object.keys(ACTIONS);
+    const ACTION_VECTORS = {
+      'UP': new THREE.Vector3(0, 0, -1),
+      'DOWN': new THREE.Vector3(0, 0, 1),
+      'LEFT': new THREE.Vector3(-1, 0, 0),
+      'RIGHT': new THREE.Vector3(1, 0, 0)
+    };
+    const ACTION_ARROWS = { 'UP': '⬆️', 'DOWN': '⬇️', 'LEFT': '⬅️', 'RIGHT': '➡️', null: '-' };
+    const TILE_EMOJIS = { 'G': '💎', 'T': '🔥', '*': '👀', '#': '🧱', '.': '🌱', 'S': '🏁' };
+
+    // --- State Variables ---
+    let agentRow, agentCol, startRow, startCol;
+    let currentEpisode = 1, stepsInEpisode = 0, testStepCounter = 0;
+    let gameOver = false, qTable = {}, autoRunIntervalId = null, showQValues = true;
+    let isTestingPolicy = false, isRunningBatch = false;
+    let targetHeightScales = {};
+
+    // --- Three.js Variables ---
+    let scene, camera, renderer, controls, clock, font;
+    let agentMesh;
+    let pillarMeshes = {};
+    let policyArrows = {};
+    let textMeshes = {};
+
+    // --- Base Materials ---
+    const basePillarMat = new THREE.MeshStandardMaterial({
+      color: 0xaaaaaa,
+      flatShading: true,
+      metalness: 0.1,
+      roughness: 0.9
+    });
+    const materials = {
+      agent: new THREE.MeshStandardMaterial({
+        color: 0xf3a683,
+        metalness: 0.3,
+        roughness: 0.6,
+        emissive: 0xf3a683,
+        emissiveIntensity: 0.2
+      }),
+      pillarFlash: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9
+      }),
+      text: new THREE.MeshBasicMaterial({
+        color: 0x1e272e,
+        transparent: true,
+        opacity: 0.8,
+        depthTest: false
+      }),
+      policyArrow: new THREE.MeshBasicMaterial({
+        color: 0x1dd1a1,
+        toneMapped: false
+      }),
+      policyArrowFlash: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        toneMapped: false
+      }),
+      wallPillar: new THREE.MeshStandardMaterial({
+        color: 0x636e72,
+        flatShading: true,
+        metalness: 0.2,
+        roughness: 0.7
+      })
+    };
+
+    // Pre-defined color references for dynamic cells
+    const colorNeutral = new THREE.Color(0xced6e0);
+    const colorGood = new THREE.Color(0x2ecc71);
+    const colorBad = new THREE.Color(0xe74c3c);
+
+    // Pillar geometry: pivot remains at the bottom so that scaling only changes height.
+    const pillarGeometry = new THREE.CylinderGeometry(PILLAR_RADIUS, PILLAR_RADIUS, 1, 6);
+    // No vertical translation! (Thus base is fixed at y=0)
+
+    const agentGeometry = new THREE.SphereGeometry(AGENT_SIZE, 16, 8);
+
+    // --- Initialization ---
+    async function init() {
+      assignDOMElements();
+      setupThreeJS();
+      await loadFont();
+      createGridGeometry();
+      createAgentGeometry();
+      setupEventListeners();
+      createWorksheet();
+      resetSimulation(false);
+      clock = new THREE.Clock();
+      animate();
+      if (loadingIndicator) loadingIndicator.style.display = 'none';
+      addLogEntry("Welcome! Press 'Start Auto' or 'Step'!", 'special');
+    }
+
+    function assignDOMElements() {
+      canvasContainer = document.getElementById('canvas-container');
+      narrativeLog = document.getElementById('narrative-log');
+      stateDisplay = document.getElementById('state');
+      actionDisplay = document.getElementById('action');
+      rewardDisplay = document.getElementById('reward');
+      episodeDisplay = document.getElementById('episode');
+      stepsDisplay = document.getElementById('steps');
+      modeDisplay = document.getElementById('mode');
+      stepButton = document.getElementById('step-button');
+      autoStartButton = document.getElementById('auto-start-button');
+      autoStopButton = document.getElementById('auto-stop-button');
+      testPolicyButton = document.getElementById('test-policy-button');
+      resetButton = document.getElementById('reset-button');
+      qToggleButton = document.getElementById('q-toggle-button');
+      fullResetButton = document.getElementById('full-reset-button');
+      speedSlider = document.getElementById('speed-slider');
+      speedValueDisplay = document.getElementById('speed-value');
+      testInfoDisplay = document.getElementById('test-info');
+      loadingIndicator = document.getElementById('loading');
+      exploreEpisodesInput = document.getElementById('explore-episodes-input');
+      runEpisodesButton = document.getElementById('run-episodes-button');
+      qWorksheetBody = document.getElementById('q-worksheet-body');
+      randomizeWorldButton = document.getElementById('randomize-world-button');
+      if (!canvasContainer || !qWorksheetBody || !narrativeLog || !testPolicyButton || !runEpisodesButton || !randomizeWorldButton) {
+        throw new Error("CRITICAL ERROR: Essential DOM elements missing.");
+      }
+      if (speedSlider && speedValueDisplay) {
+        speedValueDisplay.textContent = `${speedSlider.value}ms`;
+        STEP_INTERVAL_MS = parseInt(speedSlider.value, 10);
+      }
+    }
+
+    function setupThreeJS() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xa2d1e3);
+      scene.fog = new THREE.Fog(0xa2d1e3, 50, 150);
+      const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+      camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 1000);
+      const gridCenterOffset = (GRID_SIZE * (CELL_SIZE + CELL_GAP)) / 2 - (CELL_SIZE + CELL_GAP) / 2;
+      camera.position.set(gridCenterOffset, 50, gridCenterOffset + 35);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      canvasContainer.appendChild(renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(gridCenterOffset, 0, gridCenterOffset);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.1;
+      controls.screenSpacePanning = false;
+      controls.maxPolarAngle = Math.PI / 1.9;
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      directionalLight.position.set(30, 50, 25);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 1024;
+      directionalLight.shadow.mapSize.height = 1024;
+      directionalLight.shadow.camera.near = 10;
+      directionalLight.shadow.camera.far = 150;
+      directionalLight.shadow.camera.left = -50;
+      directionalLight.shadow.camera.right = 50;
+      directionalLight.shadow.camera.top = 50;
+      directionalLight.shadow.camera.bottom = -50;
+      scene.add(directionalLight);
+      const groundGeo = new THREE.PlaneGeometry(200, 200);
+      const groundMat = new THREE.MeshLambertMaterial({ color: 0x7f8c8d });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = BASE_Y_POS - 0.1;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    async function loadFont() {
+      const loader = new FontLoader();
+      try {
+        font = await loader.loadAsync('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_regular.typeface.json');
+      } catch (error) {
+        console.error("Font load error:", error);
+        alert("Font failed to load.");
+        font = null;
+      }
+    }
+
+    function removeGridGeometry() {
+      Object.values(pillarMeshes).forEach(mesh => mesh && scene.remove(mesh));
+      Object.values(policyArrows).forEach(arrow => arrow && scene.remove(arrow));
+      Object.values(textMeshes).forEach(mesh => mesh && scene.remove(mesh));
+      pillarMeshes = {};
+      policyArrows = {};
+      textMeshes = {};
+      targetHeightScales = {};
+    }
+
+    // Create grid: note that we now set fixed colors for traps, rewards, and mud.
+    function createGridGeometry() {
+      removeGridGeometry();
+      const totalGridWidth = GRID_SIZE * (CELL_SIZE + CELL_GAP) - CELL_GAP;
+      const startX = -totalGridWidth / 2 + CELL_SIZE / 2;
+      const startZ = -totalGridWidth / 2 + CELL_SIZE / 2;
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          const s = `${r},${c}`;
+          const cellType = gridLayout[r][c];
+          let mat;
+          if (cellType === '#') {
+            mat = materials.wallPillar.clone();
+          } else if (cellType === 'T') {
+            mat = basePillarMat.clone();
+            mat.color.setHex(0xff0000); // trap: red
+          } else if (cellType === 'G') {
+            mat = basePillarMat.clone();
+            mat.color.setHex(0x00ff00); // reward: green
+          } else if (cellType === '*') {
+            mat = basePillarMat.clone();
+            mat.color.setHex(0x8B4513); // mud: rich brown
+          } else {
+            mat = basePillarMat.clone();
+          }
+          const pillar = new THREE.Mesh(pillarGeometry, mat);
+          pillar.receiveShadow = true;
+          pillar.castShadow = true;
+          pillar.position.set(
+            startX + c * (CELL_SIZE + CELL_GAP),
+            BASE_Y_POS, // base pinned at ground
+            startZ + r * (CELL_SIZE + CELL_GAP)
+          );
+          pillar.scale.y = PILLAR_MIN_HEIGHT;
+          scene.add(pillar);
+          pillarMeshes[s] = pillar;
+          targetHeightScales[s] = PILLAR_MIN_HEIGHT;
+
+          // Policy arrow (only for dynamic, regular cells)
+          const arrow = new THREE.ArrowHelper(
+            ACTION_VECTORS.DOWN,
+            pillar.position,
+            POLICY_ARROW_LENGTH,
+            materials.policyArrow.color.getHex(),
+            POLICY_ARROW_HEAD_LENGTH,
+            POLICY_ARROW_HEAD_WIDTH
+          );
+          arrow.position.y = BASE_Y_POS + 0.2;
+          arrow.visible = false;
+          scene.add(arrow);
+          policyArrows[s] = arrow;
+
+          // Text label for cell address
+          if (font) {
+            const textGeo = new TextGeometry(`(${r},${c})`, { font: font, size: TEXT_SIZE, height: TEXT_HEIGHT });
+            textGeo.computeBoundingBox();
+            textGeo.center();
+            const textMesh = new THREE.Mesh(textGeo, materials.text.clone());
+            textMesh.renderOrder = 999;
+            textMesh.position.set(
+              pillar.position.x,
+              BASE_Y_POS + TEXT_OFFSET,
+              pillar.position.z
+            );
+            textMesh.rotation.x = -Math.PI / 2;
+            textMesh.visible = true;
+            scene.add(textMesh);
+            textMeshes[s] = textMesh;
+          }
+        }
+      }
+      // Make walls a bit taller.
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (gridLayout[r][c] === '#') {
+            const s = `${r},${c}`;
+            pillarMeshes[s].scale.y = 1.5;
+            targetHeightScales[s] = 1.5;
+          }
+        }
+      }
+    }
+
+    function createAgentGeometry() {
+      agentMesh = new THREE.Mesh(agentGeometry, materials.agent);
+      agentMesh.castShadow = true;
+      scene.add(agentMesh);
+    }
+
+    function setupEventListeners() {
+      if (stepButton) stepButton.addEventListener('click', takeStep);
+      if (autoStartButton) autoStartButton.addEventListener('click', startAutoRun);
+      if (autoStopButton) autoStopButton.addEventListener('click', stopAutoRun);
+      if (testPolicyButton) testPolicyButton.addEventListener('click', startTestPolicy);
+      if (resetButton) resetButton.addEventListener('click', () => resetSimulation(true));
+      if (qToggleButton) qToggleButton.addEventListener('click', toggleQValueVisualization);
+      if (fullResetButton) fullResetButton.addEventListener('click', () => resetSimulation(false));
+      if (speedSlider) speedSlider.addEventListener('input', changeSpeed);
+      if (runEpisodesButton) runEpisodesButton.addEventListener('click', handleRunMultipleEpisodes);
+      if (randomizeWorldButton) randomizeWorldButton.addEventListener('click', rebuildWorld);
+    }
+
+    function onWindowResize() {
+      const w = canvasContainer.clientWidth;
+      const h = canvasContainer.clientHeight;
+      if (w === 0 || h === 0) return;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    function addLogEntry(msg, type = 'info') {
+      if (!narrativeLog) return;
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = msg;
+      narrativeLog.appendChild(entry);
+      narrativeLog.scrollTop = narrativeLog.scrollHeight;
+    }
+
+    // Worksheet helpers
+    function createWorksheet() {
+      if (!qWorksheetBody) return;
+      qWorksheetBody.innerHTML = '';
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          const rowEl = document.createElement('tr');
+          rowEl.id = `q-row-${r}-${c}`;
+          const stateCell = document.createElement('td');
+          stateCell.className = 'state-col';
+          stateCell.textContent = `(${r},${c})`;
+          rowEl.appendChild(stateCell);
+          ACTION_NAMES.forEach(action => {
+            const cell = document.createElement('td');
+            cell.id = `q-cell-${r}-${c}-${action}`;
+            cell.textContent = '0.0';
+            rowEl.appendChild(cell);
+          });
+          const bestGuessCell = document.createElement('td');
+          bestGuessCell.className = 'best-guess-col';
+          bestGuessCell.id = `q-best-${r}-${c}`;
+          bestGuessCell.textContent = ACTION_ARROWS[null];
+          rowEl.appendChild(bestGuessCell);
+          qWorksheetBody.appendChild(rowEl);
+        }
+      }
+    }
+    function clearWorksheet() {
+      if (!qWorksheetBody) return;
+      const cells = qWorksheetBody.querySelectorAll('td:not(.state-col):not(.best-guess-col)');
+      cells.forEach(cell => (cell.textContent = '0.0'));
+      const bestCells = qWorksheetBody.querySelectorAll('.best-guess-col');
+      bestCells.forEach(cell => (cell.textContent = ACTION_ARROWS[null]));
+    }
+    function updateWorksheetCell(r, c, action, value) {
+      const cellId = `q-cell-${r}-${c}-${action}`;
+      const cell = document.getElementById(cellId);
+      if (!cell) return;
+      cell.textContent = value.toFixed(1);
+      cell.classList.remove('flash-update');
+      void cell.offsetWidth;
+      cell.classList.add('flash-update');
+      setTimeout(() => cell.classList.remove('flash-update'), 700);
+    }
+    function updateWorksheetBestGuess(r, c, bestAction) {
+      const cellId = `q-best-${r}-${c}`;
+      const cell = document.getElementById(cellId);
+      if (!cell) return;
+      const oldArrow = cell.textContent;
+      const newArrow = ACTION_ARROWS[bestAction] || ACTION_ARROWS[null];
+      if (oldArrow !== newArrow) {
+        cell.textContent = newArrow;
+        cell.classList.remove('flash-update');
+        void cell.offsetWidth;
+        cell.classList.add('flash-update');
+        setTimeout(() => cell.classList.remove('flash-update'), 700);
+      }
+    }
+
+    // Q-Learning helpers
+    function findStart() {
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (gridLayout[r][c] === 'S') return { row: r, col: c };
+        }
+      }
+      console.warn("No start 'S' found!");
+      return { row: 0, col: 0 };
+    }
+    function getStateString(r, c) { return `${r},${c}`; }
+    function getQValue(r, c, action) {
+      const s = getStateString(r, c);
+      return qTable[s]?.[action] ?? 0;
+    }
+    function getMaxQValue(r, c) {
+      const s = getStateString(r, c);
+      if (!qTable[s]) return 0;
+      let maxQ = -Infinity;
+      let found = false;
+      for (const action of ACTION_NAMES) {
+        if (qTable[s].hasOwnProperty(action)) {
+          maxQ = Math.max(maxQ, qTable[s][action]);
+          found = true;
+        }
+      }
+      return found ? maxQ : 0;
+    }
+    function getBestAction(r, c) {
+      const s = getStateString(r, c);
+      if (!qTable[s]) return null;
+      let best = null;
+      let maxQ = -Infinity;
+      const shuffled = [...ACTION_NAMES].sort(() => Math.random() - 0.5);
+      for (const action of shuffled) {
+        if (qTable[s].hasOwnProperty(action)) {
+          const val = qTable[s][action];
+          if (val > maxQ) {
+            maxQ = val;
+            best = action;
+          }
+        }
+      }
+      return best;
+    }
+
+    // Update pillar color based on Q value – only for regular cells.
+    function updatePillarColor(r, c) {
+      const s = getStateString(r, c);
+      const cellType = gridLayout[r][c];
+      // For special cells (trap, reward, or mud) do not update dynamic color.
+      if (cellType === 'T' || cellType === 'G' || cellType === '*') return;
+      const pillar = pillarMeshes[s];
+      if (!pillar) return;
+      const maxQ = getMaxQValue(r, c);
+      let norm = (maxQ - Q_VALUE_MIN_EXPECTED) / (Q_VALUE_MAX_EXPECTED - Q_VALUE_MIN_EXPECTED);
+      norm = Math.max(0, Math.min(1, norm));
+      // Lerp from neutral (worst) to good (best)
+      pillar.material.color.lerpColors(colorNeutral, colorGood, norm);
+    }
+
+    // Flash pillar with a color-coded highlight for Q update – only for regular cells.
+    function colorFlashPillar(r, c, newQValue) {
+      const s = getStateString(r, c);
+      const pillar = pillarMeshes[s];
+      if (!pillar) return;
+      const cellType = gridLayout[r][c];
+      if (cellType === 'T' || cellType === 'G' || cellType === '*') return;
+      let flashColor = 0xffffff;
+      if (newQValue > 0.5) flashColor = 0x66ff66;  // bright green
+      else if (newQValue < -0.5) flashColor = 0xff6666; // bright red
+      else flashColor = 0xffff66; // yellow for near zero
+      const originalMat = pillar.material;
+      const flashMat = materials.pillarFlash.clone();
+      flashMat.color.setHex(flashColor);
+      pillar.material = flashMat;
+      setTimeout(() => {
+        pillar.material = originalMat;
+        updatePillarColor(r, c);
+      }, 400);
+    }
+
+    // Q-value update function – dynamic updates only for regular cells.
+    function updateQValue(prevR, prevC, action, reward, nextR, nextC) {
+      if (!action || gridLayout[prevR][prevC] === '#') return;
+      const s = getStateString(prevR, prevC);
+      if (!qTable[s]) qTable[s] = {};
+      const oldQ = getQValue(prevR, prevC, action);
+      const maxNext = getMaxQValue(nextR, nextC);
+      const newQ = oldQ + LEARNING_RATE * (reward + DISCOUNT_FACTOR * maxNext - oldQ);
+      qTable[s][action] = newQ;
+      // Update target height only for regular cells
+      const cellType = gridLayout[prevR][prevC];
+      if (cellType !== 'T' && cellType !== 'G' && cellType !== '*') {
+        let norm = (getMaxQValue(prevR, prevC) - Q_VALUE_MIN_EXPECTED) / (Q_VALUE_MAX_EXPECTED - Q_VALUE_MIN_EXPECTED);
+        norm = Math.max(0, Math.min(1, norm));
+        targetHeightScales[s] = PILLAR_MIN_HEIGHT + norm * (PILLAR_MAX_HEIGHT - PILLAR_MIN_HEIGHT);
+      }
+      updateWorksheetCell(prevR, prevC, action, newQ);
+      const newBest = getBestAction(prevR, prevC);
+      updateWorksheetBestGuess(prevR, prevC, newBest);
+      const bestChanged = (newBest !== getBestAction(prevR, prevC));
+      updateCellVisualization(prevR, prevC, bestChanged);
+      if (cellType !== 'T' && cellType !== 'G' && cellType !== '*') {
+        colorFlashPillar(prevR, prevC, newQ);
+      }
+    }
+
+    // Update arrow and color for the cell – only dynamic for regular cells.
+    function updateCellVisualization(r, c, bestActionChanged = false) {
+      const s = getStateString(r, c);
+      const arrow = policyArrows[s];
+      const pillar = pillarMeshes[s];
+      if (!arrow || !pillar) return;
+      const cellType = gridLayout[r][c];
+      // For walls, traps, rewards, and mud: hide policy arrow.
+      if (cellType === '#' || cellType === 'G' || cellType === 'T' || cellType === '*') {
+        arrow.visible = false;
+        return;
+      }
+      const bestAct = getBestAction(r, c);
+      if (!bestAct || !showQValues) {
+        arrow.visible = false;
+      } else {
+        arrow.visible = true;
+        arrow.setDirection(ACTION_VECTORS[bestAct]);
+        arrow.position.set(
+          pillar.position.x,
+          pillar.position.y + (pillarGeometry.parameters.height * pillar.scale.y / 2) + 0.2,
+          pillar.position.z
+        );
+        if (bestActionChanged) {
+          arrow.scale.set(1.6, 1.6, 1.6);
+          arrow.line.material.color.set(0xffffff);
+          arrow.cone.material.color.set(0xffffff);
+          setTimeout(() => {
+            arrow.scale.set(1, 1, 1);
+            arrow.setColor(materials.policyArrow.color.getHex());
+          }, 400);
+        } else {
+          arrow.scale.set(1, 1, 1);
+          arrow.setColor(materials.policyArrow.color.getHex());
+        }
+      }
+      if (showQValues && cellType !== 'T' && cellType !== 'G' && cellType !== '*') {
+        updatePillarColor(r, c);
+      }
+    }
+    function updateGridVisualization() {
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          updateCellVisualization(r, c, false);
+        }
+      }
+    }
+
+    // Simulation status update
+    function updateStatus(actName, rew, newState) {
+      if (stateDisplay) stateDisplay.textContent = `(${newState.row}, ${newState.col})`;
+      if (actionDisplay) actionDisplay.textContent = actName || 'N/A';
+      if (rewardDisplay) rewardDisplay.textContent = rew !== null ? rew.toFixed(0) : 'N/A';
+      if (episodeDisplay) episodeDisplay.textContent = currentEpisode;
+      if (stepsDisplay) stepsDisplay.textContent = stepsInEpisode;
+      if (modeDisplay)
+        modeDisplay.textContent = isRunningBatch
+          ? `Batch (${currentEpisode})`
+          : isTestingPolicy
+          ? 'Test Plan'
+          : 'Explore';
+      if (testInfoDisplay)
+        testInfoDisplay.textContent = isTestingPolicy
+          ? `(Step ${testStepCounter}/${TEST_MAX_STEPS})`
+          : '';
+      const canExplore = !isTestingPolicy && !gameOver && autoRunIntervalId === null && !isRunningBatch;
+      const canStop = autoRunIntervalId !== null;
+      const canTest = !isTestingPolicy && !gameOver && autoRunIntervalId === null && !isRunningBatch;
+      const canReset = autoRunIntervalId === null && !isRunningBatch;
+      const canRunBatch = !isRunningBatch && autoRunIntervalId === null;
+      if (stepButton) stepButton.disabled = !canExplore;
+      if (autoStartButton) autoStartButton.disabled = !canExplore;
+      if (testPolicyButton) testPolicyButton.disabled = !canTest;
+      if (autoStopButton) autoStopButton.disabled = !canStop;
+      if (resetButton) resetButton.disabled = !canReset;
+      if (fullResetButton) fullResetButton.disabled = !canReset;
+      if (runEpisodesButton) runEpisodesButton.disabled = !canRunBatch;
+      if (exploreEpisodesInput) exploreEpisodesInput.disabled = !canRunBatch;
+    }
+
+    function takeStep() {
+      if (gameOver) { stopAutoRun(); return false; }
+      stepsInEpisode++;
+      if (isTestingPolicy) testStepCounter++;
+      const prevState = { row: agentRow, col: agentCol };
+      let chosenAction = null;
+      if (isTestingPolicy) {
+        chosenAction = getBestAction(agentRow, agentCol);
+        if (!chosenAction) {
+          addLogEntry(`🤖[Test](${prevState.row},${prevState.col}) Plan is blank!`, 'bad');
+          gameOver = true;
+          stopAutoRun();
+          updateStatus(null, null, prevState);
+          addLogEntry(`--- Test ${currentEpisode} ended (No Plan) ---`, 'special');
+          isTestingPolicy = false;
+          return false;
+        }
+      } else {
+        chosenAction = ACTION_NAMES[Math.floor(Math.random() * ACTION_NAMES.length)];
+      }
+      if (isTestingPolicy && testStepCounter > TEST_MAX_STEPS) {
+        addLogEntry(`🤖[Test](${prevState.row},${prevState.col}) Step limit reached!`, 'bad');
+        gameOver = true;
+        stopAutoRun();
+        updateStatus(chosenAction, null, prevState);
+        addLogEntry(`--- Test ${currentEpisode} ended (Limit) ---`, 'special');
+        isTestingPolicy = false;
+        return false;
+      }
+      const actionObj = ACTIONS[chosenAction];
+      const potentialRow = agentRow + actionObj.dr;
+      const potentialCol = agentCol + actionObj.dc;
+      let reward = null;
+      let logMessage = '';
+      let logType = 'info';
+      let actualAction = chosenAction;
+      let nextState = { row: agentRow, col: agentCol };
+      if (potentialRow < 0 || potentialRow >= GRID_SIZE || potentialCol < 0 || potentialCol >= GRID_SIZE) {
+        reward = REWARDS['HIT_WALL'];
+        actualAction += '(Edge)';
+        logMessage = `Edge! (${reward} pts)`;
+        logType = 'bad';
+      } else if (gridLayout[potentialRow][potentialCol] === '#') {
+        reward = REWARDS['HIT_WALL'];
+        actualAction += '(Wall)';
+        logMessage = `🧱! (${reward} pts)`;
+        logType = 'bad';
+      } else {
+        agentRow = potentialRow;
+        agentCol = potentialCol;
+        nextState = { row: agentRow, col: agentCol };
+        const tileType = gridLayout[agentRow][agentCol];
+        const tileEmoji = TILE_EMOJIS[tileType] || '?';
+        reward = REWARDS[tileType];
+        if (tileType === 'G') {
+          gameOver = true;
+          logMessage = `💎! (+${reward} pts)`;
+          logType = 'good';
+          stopAutoRun();
+          confetti({ particleCount: 60, spread: 80, origin: { y: 0.6 } });
+        } else if (tileType === 'T') {
+          gameOver = true;
+          logMessage = `🔥! (${reward} pts)`;
+          logType = 'bad';
+          stopAutoRun();
+        } else if (tileType === '*') {
+          logMessage = `Mud 👣! (${reward} pts)`;
+        } else {
+          logMessage = `${tileEmoji}. (${reward} pts)`;
+        }
+      }
+      const prefix = isRunningBatch ? `🤖[B${currentEpisode}]` : (isTestingPolicy ? '🤖[Test]' : '🤖[Exp]');
+      if (!isRunningBatch || gameOver || stepsInEpisode % 5 === 0) {
+        addLogEntry(`${prefix}(${prevState.row},${prevState.col}) ${chosenAction} -> ${logMessage}`, logType);
+      }
+      if (!isTestingPolicy) {
+        updateQValue(prevState.row, prevState.col, chosenAction, reward, nextState.row, nextState.col);
+      }
+      updateStatus(actualAction, reward, nextState);
+      if (gameOver) {
+        addLogEntry(`--- ${isRunningBatch ? 'Ep ' + currentEpisode : isTestingPolicy ? 'Test' : 'Episode'} ended! ${stepsInEpisode} steps. ---`, 'special');
+        isTestingPolicy = false;
+        updateStatus(actualAction, reward, nextState);
+      }
+      return true;
+    }
+
+    function runAutoStep() { takeStep(); }
+    function startAutoRun() {
+      if (autoRunIntervalId || gameOver || isTestingPolicy || isRunningBatch) return;
+      stopAutoRun();
+      isTestingPolicy = false;
+      autoRunIntervalId = setInterval(runAutoStep, STEP_INTERVAL_MS);
+      addLogEntry("🚀 Auto Explore ON!", "info");
+      updateStatus(null, null, { row: agentRow, col: agentCol });
+    }
+    function stopAutoRun() {
+      if (autoRunIntervalId) {
+        clearInterval(autoRunIntervalId);
+        autoRunIntervalId = null;
+        addLogEntry("⏸️ Auto STOP.", "info");
+        updateStatus(null, null, { row: agentRow, col: agentCol });
+      }
+    }
+    function startTestPolicy() {
+      if (gameOver || autoRunIntervalId || isTestingPolicy || isRunningBatch) return;
+      stopAutoRun();
+      resetAgentPosition();
+      isTestingPolicy = true;
+      gameOver = false;
+      stepsInEpisode = 0;
+      testStepCounter = 0;
+      addLogEntry(`--- Starting Policy Test (Episode ${currentEpisode})! ---`, "special");
+      updateStatus(null, null, { row: agentRow, col: agentCol });
+      autoRunIntervalId = setInterval(runAutoStep, STEP_INTERVAL_MS / 1.5);
+      addLogEntry("🚀 Auto Test RUN!", "info");
+    }
+    function resetAgentPosition() {
+      const st = findStart();
+      startRow = st.row;
+      startCol = st.col;
+      agentRow = startRow;
+      agentCol = startCol;
+      if (agentMesh) {
+        const s = getStateString(agentRow, agentCol);
+        const pm = pillarMeshes[s];
+        if (pm) {
+          agentMesh.position.set(
+            pm.position.x,
+            pm.position.y + (pillarGeometry.parameters.height * pm.scale.y / 2) + AGENT_HEIGHT_OFFSET,
+            pm.position.z
+          );
+        }
+      }
+    }
+    function resetSimulation(keepLearning = true) {
+      stopAutoRun();
+      isTestingPolicy = false;
+      const st = findStart();
+      startRow = st.row;
+      startCol = st.col;
+      if (gameOver || !keepLearning) currentEpisode++;
+      agentRow = startRow;
+      agentCol = startCol;
+      stepsInEpisode = 0;
+      testStepCounter = 0;
+      gameOver = false;
+      if (!keepLearning) {
+        qTable = {};
+        clearWorksheet();
+        for (const s in pillarMeshes) {
+          targetHeightScales[s] = PILLAR_MIN_HEIGHT;
+          const [r, c] = s.split(',').map(Number);
+          const pm = pillarMeshes[s];
+          if (pm && gridLayout[r][c] !== '#') {
+            pm.scale.y = PILLAR_MIN_HEIGHT;
+            pm.material = basePillarMat.clone();
+            // Reapply fixed colors for special cells:
+            const cellType = gridLayout[r][c];
+            if (cellType === 'T') pm.material.color.setHex(0xff0000);
+            else if (cellType === 'G') pm.material.color.setHex(0x00ff00);
+            else if (cellType === '*') pm.material.color.setHex(0x8B4513);
+          }
+        }
+        if (narrativeLog) narrativeLog.innerHTML = '';
+        addLogEntry("✨ Robot forgot everything! ✨", "special");
+      }
+      addLogEntry(`--- Starting Episode ${currentEpisode}! ---`, "special");
+      if (agentMesh) resetAgentPosition();
+      updateStatus("RESET", null, { row: agentRow, col: agentCol });
+      updateGridVisualization();
+    }
+    function toggleQValueVisualization() {
+      showQValues = !showQValues;
+      if (qToggleButton) qToggleButton.classList.toggle("active", showQValues);
+      document.body.classList.toggle("q-viz-on", showQValues);
+      updateGridVisualization();
+      addLogEntry(`🧠 Show Learning: ${showQValues ? "ON" : "OFF"}`, "info");
+    }
+    function changeSpeed(e) {
+      STEP_INTERVAL_MS = parseInt(e.target.value, 10);
+      if (speedValueDisplay) speedValueDisplay.textContent = `${STEP_INTERVAL_MS}ms`;
+      if (autoRunIntervalId) {
+        stopAutoRun();
+        const interval = isTestingPolicy ? STEP_INTERVAL_MS / 1.5 : STEP_INTERVAL_MS;
+        autoRunIntervalId = setInterval(runAutoStep, interval);
+        addLogEntry(`🚀 Auto ${isTestingPolicy ? "Test" : "Explore"} RUN!`, "info");
+      }
+    }
+    async function handleRunMultipleEpisodes() {
+      if (isRunningBatch || autoRunIntervalId || isTestingPolicy) return;
+      const num = parseInt(exploreEpisodesInput.value, 10);
+      if (isNaN(num) || num < 1) {
+        addLogEntry("⚠️ Need number > 0 episodes.", "bad");
+        return;
+      }
+      isRunningBatch = true;
+      addLogEntry(`🚀 Batch Run: ${num} episodes...`, "special");
+      updateStatus(null, null, { row: agentRow, col: agentCol });
+      const startTime = Date.now();
+      let episodesDone = 0;
+      let totalSteps = 0;
+      const MAX_STEPS_PER_EPISODE = 150;
+      for (let i = 0; i < num; i++) {
+        resetSimulation(true);
+        let stepsHere = 0;
+        while (!gameOver && stepsHere < MAX_STEPS_PER_EPISODE) {
+          takeStep();
+          stepsHere++;
+          totalSteps++;
+          if (stepsHere % 50 === 0) await new Promise(r => setTimeout(r, 0));
+        }
+        episodesDone++;
+        if (stepsHere >= MAX_STEPS_PER_EPISODE) {
+          addLogEntry(`⚠️ Ep ${currentEpisode} forced stop at ${MAX_STEPS_PER_EPISODE} steps.`, "bad");
+        }
+      }
+      const endTime = Date.now();
+      const secs = ((endTime - startTime) / 1000).toFixed(1);
+      addLogEntry(`✅ Batch Finished! (${episodesDone}/${num} eps, ${totalSteps} steps in ${secs}s).`, "special");
+      isRunningBatch = false;
+      updateStatus(null, null, { row: agentRow, col: agentCol });
+    }
+    function randomizeGridLayout() {
+      const arr = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('.'));
+      const empties = [];
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          arr[r][c] = '.';
+          empties.push({ r, c });
+        }
+      }
+      empties.sort(() => Math.random() - 0.5);
+      const placeItem = (chr, count) => {
+        let placed = 0, tries = 0, maxTries = empties.length * 2;
+        while (placed < count && empties.length > 0 && tries < maxTries) {
+          const idx = Math.floor(Math.random() * empties.length);
+          const cell = empties[idx];
+          arr[cell.r][cell.c] = chr;
+          empties.splice(idx, 1);
+          placed++;
+          tries++;
+        }
+      };
+      placeItem('G', 1);
+      placeItem('T', 2);
+      placeItem('*', 2);
+      placeItem('#', 1);
+      if (empties.length > 0) {
+        const sCell = empties.pop();
+        arr[sCell.r][sCell.c] = 'S';
+      } else {
+        arr[0][0] = 'S';
+      }
+      gridLayout = arr;
+      addLogEntry("🌍 World Randomized! 🌍", "special");
+    }
+    function rebuildWorld() {
+      if (isRunningBatch || autoRunIntervalId) {
+        addLogEntry("⚠️ Cannot randomize while running!", "bad");
+        return;
+      }
+      randomizeGridLayout();
+      createGridGeometry();
+      resetSimulation(false);
+    }
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      const elapsedTime = clock.getElapsedTime();
+      for (const s in pillarMeshes) {
+        const mesh = pillarMeshes[s];
+        const arrow = policyArrows[s];
+        const textMesh = textMeshes[s];
+        const targetScaleY = targetHeightScales[s] || PILLAR_MIN_HEIGHT;
+        if (Math.abs(mesh.scale.y - targetScaleY) > 0.01) {
+          mesh.scale.y = THREE.MathUtils.lerp(mesh.scale.y, targetScaleY, HEIGHT_LERP_FACTOR);
+        }
+        if (arrow && arrow.visible) {
+          arrow.position.y = BASE_Y_POS + (pillarGeometry.parameters.height * mesh.scale.y) + 0.2;
+        }
+        if (textMesh) {
+          textMesh.position.y = BASE_Y_POS + (pillarGeometry.parameters.height * mesh.scale.y) + TEXT_OFFSET;
+        }
+      }
+      if (agentMesh) {
+        const s = getStateString(agentRow, agentCol);
+        const pm = pillarMeshes[s];
+        if (pm) {
+          const targetPos = new THREE.Vector3(
+            pm.position.x,
+            BASE_Y_POS + (pillarGeometry.parameters.height * pm.scale.y) + AGENT_HEIGHT_OFFSET,
+            pm.position.z
+          );
+          targetPos.x += Math.cos(elapsedTime * 11 + agentRow) * JIGGLE_AMOUNT;
+          targetPos.z += Math.sin(elapsedTime * 10 + agentCol) * JIGGLE_AMOUNT;
+          agentMesh.position.lerp(targetPos, AGENT_LERP_FACTOR);
+        }
+      }
+      if (font && camera) {
+        for (const key in textMeshes) {
+          if (textMeshes[key]) textMeshes[key].quaternion.copy(camera.quaternion);
+        }
+      }
+      renderer.render(scene, camera);
+    }
+
+    try {
+      init();
+    } catch (error) {
+      console.error("Initialization Failed:", error);
+      if (loadingIndicator) loadingIndicator.textContent = "Error loading! Check console (F12).";
+      alert("Failed to initialize simulation. See console.");
+    }
+  </script>
+</body>
+</html>
